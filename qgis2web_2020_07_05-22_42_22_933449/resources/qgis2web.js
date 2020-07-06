@@ -32,6 +32,19 @@ var map = new ol.Map({
 });
 
 
+    var searchLayer = new SearchLayer({
+      layer: lyr_DSAMembersforWebpage_1,
+      colName: 'Members',
+      zoom: 10,
+      collapsed: true,
+      map: map
+    });
+
+    map.addControl(searchLayer);
+    document.getElementsByClassName('search-layer')[0]
+    .getElementsByTagName('button')[0].className +=
+    ' fa fa-binoculars';
+    
 map.getView().fit([-13180751.645492, 3988126.402563, -13122196.983015, 4022276.893785], map.getSize());
 
 var NO_POPUP = 0
@@ -72,8 +85,8 @@ var featureOverlay = new ol.layer.Vector({
     updateWhileInteracting: true // optional, for instant visual feedback
 });
 
-var doHighlight = false;
-var doHover = false;
+var doHighlight = true;
+var doHover = true;
 
 var highlight;
 var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
