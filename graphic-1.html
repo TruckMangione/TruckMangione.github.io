@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html><head>
+<title></title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<style>
+
+    body { margin: 0px; overflow: hidden; }
+
+    #menu-container { position: absolute; bottom: 30px; right: 40px; }
+
+    #menu-content { position: absolute; bottom: 0px; right: 0px;
+                    display: none; background-color: #F5F5F5; border-bottom: 1px solid black;
+                    border-right: 1px solid black; border-left: 1px solid black; }
+
+    #menu-content div { border-top: 1px solid black; padding: 10px; white-space: nowrap; }
+  
+</style>
+</head>
+
+<body>
+
+<script src="/nbextensions/threejs/build/three.min.js"></script>
+<script src="/nbextensions/threejs/examples/js/controls/OrbitControls.js"></script>
+<script>
+  if ( !window.THREE ) document.write(' \
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r110/build/three.min.js"><\/script> \
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r110/examples/js/controls/OrbitControls.js"><\/script> \
+            ');
+</script>
+        
+<script>
+
+    var scene = new THREE.Scene();
+
+    var renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+    renderer.setPixelRatio( window.devicePixelRatio );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.setClearColor( 0xffffff, 1 );
+    document.body.appendChild( renderer.domElement );
+
+    var options = {"aspect_ratio": [1.0, 1.0, 1.0], "axes": false, "axes_labels": ["x", "y", "z"], "decimals": 2, "frame": true, "projection": "perspective"};
+
+    // When animations are supported by the viewer, the value 'false'
+    // will be replaced with an option set in Python by the user
+    var animate = false; // options.animate;
+
+    var b = [{"x":-5.0, "y":-0.9995423286138431, "z":-5.0}, {"x":5.0, "y":3.0, "z":5.0}]; // bounds
+
+    if ( b[0].x === b[1].x ) {
+        b[0].x -= 1;
+        b[1].x += 1;
+    }
+    if ( b[0].y === b[1].y ) {
+        b[0].y -= 1;
+        b[1].y += 1;
+    }
+    if ( b[0].z === b[1].z ) {
+        b[0].z -= 1;
+        b[1].z += 1;
+    }
+
+    var rRange = Math.sqrt( Math.pow( b[1].x - b[0].x, 2 )
+                            + Math.pow( b[1].y - b[0].y, 2 ) );
+    var xRange = b[1].x - b[0].x;
+    var yRange = b[1].y - b[0].y;
+    var zRange = b[1].z - b[0].z;
+
+    var ar = options.aspect_ratio;
+    var a = [ ar[0], ar[1], ar[2] ]; // aspect multipliers
+    var autoAspect = 2.5;
+    if ( zRange > autoAspect * rRange && a[2] === 1 ) a[2] = autoAspect * rRange / zRange;
+
+    // Distance from (xMid,yMid,zMid) to any corner of the bounding box, after applying aspect_ratio.
+    var midToCorner = Math.sqrt( a[0]*a[0]*xRange*xRange + a[1]*a[1]*yRange*yRange + a[2]*a[2]*zRange*zRange ) / 2;
+
+    var xMid = ( b[0].x + b[1].x ) / 2;
+    var yMid = ( b[0].y + b[1].y ) / 2;
+    var zMid = ( b[0].z + b[1].z ) / 2;
+
+    var box = new THREE.Geometry();
+    box.vertices.push( new THREE.Vector3( a[0]*b[0].x, a[1]*b[0].y, a[2]*b[0].z ) );
+    box.vertices.push( new THREE.Vector3( a[0]*b[1].x, a[1]*b[1].y, a[2]*b[1].z ) );
+    var boxMesh = new THREE.Line( box );
+    if ( options.frame ) scene.add( new THREE.BoxHelper( boxMesh, 'black' ) );
+
+    if ( options.axes_labels ) {
+
+        var d = options.decimals; // decimals
+        var offsetRatio = 0.1;
+        var al = options.axes_labels;
+
+        var offset = offsetRatio * a[1]*( b[1].y - b[0].y );
+        var xm = xMid.toFixed(d);
+        if ( /^-0.?0*$/.test(xm) ) xm = xm.substr(1);
+        addLabel( al[0] + '=' + xm, a[0]*xMid, a[1]*b[1].y+offset, a[2]*b[0].z );
+        addLabel( ( b[0].x ).toFixed(d), a[0]*b[0].x, a[1]*b[1].y+offset, a[2]*b[0].z );
+        addLabel( ( b[1].x ).toFixed(d), a[0]*b[1].x, a[1]*b[1].y+offset, a[2]*b[0].z );
+
+        var offset = offsetRatio * a[0]*( b[1].x - b[0].x );
+        var ym = yMid.toFixed(d);
+        if ( /^-0.?0*$/.test(ym) ) ym = ym.substr(1);
+        addLabel( al[1] + '=' + ym, a[0]*b[1].x+offset, a[1]*yMid, a[2]*b[0].z );
+        addLabel( ( b[0].y ).toFixed(d), a[0]*b[1].x+offset, a[1]*b[0].y, a[2]*b[0].z );
+        addLabel( ( b[1].y ).toFixed(d), a[0]*b[1].x+offset, a[1]*b[1].y, a[2]*b[0].z );
+
+        var offset = offsetRatio * a[1]*( b[1].y - b[0].y );
+        var zm = zMid.toFixed(d);
+        if ( /^-0.?0*$/.test(zm) ) zm = zm.substr(1);
+        addLabel( al[2] + '=' + zm, a[0]*b[1].x, a[1]*b[0].y-offset, a[2]*zMid );
+        addLabel( ( b[0].z ).toFixed(d), a[0]*b[1].x, a[1]*b[0].y-offset, a[2]*b[0].z );
+        addLabel( ( b[1].z ).toFixed(d), a[0]*b[1].x, a[1]*b[0].y-offset, a[2]*b[1].z );
+
+    }
+
+    function addLabel( text, x, y, z ) {
+
+        var fontsize = 14;
+
+        var canvas = document.createElement( 'canvas' );
+        var pixelRatio = Math.round( window.devicePixelRatio );
+        canvas.width = 128 * pixelRatio;
+        canvas.height = 32 * pixelRatio; // powers of two
+        canvas.style.width = '128px';
+        canvas.style.height = '32px';
+
+        var context = canvas.getContext( '2d' );
+        context.scale( pixelRatio, pixelRatio );
+        context.fillStyle = 'black';
+        context.font = fontsize + 'px monospace';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText( text, canvas.width/2/pixelRatio, canvas.height/2/pixelRatio );
+
+        var texture = new THREE.Texture( canvas );
+        texture.needsUpdate = true;
+
+        var sprite = new THREE.Sprite( new THREE.SpriteMaterial( { map: texture } ) );
+        sprite.position.set( x, y, z );
+
+        // Set the initial scale based on plot size to accomodate orthographic projection.
+        // For other projections, the scale will get reset each frame based on camera distance.
+        var scale = midToCorner/2;
+        sprite.scale.set( scale, scale*.25 ); // ratio of canvas width to height
+
+        scene.add( sprite );
+
+    }
+
+    if ( options.axes ) scene.add( new THREE.AxesHelper( Math.min( a[0]*b[1].x, a[1]*b[1].y, a[2]*b[1].z ) ) );
+
+    var camera = createCamera();
+    camera.up.set( 0, 0, 1 );
+    camera.position.set( a[0]*(xMid+xRange), a[1]*(yMid+yRange), a[2]*(zMid+zRange) );
+
+    function createCamera() {
+
+        var aspect = window.innerWidth / window.innerHeight;
+
+        if ( options.projection === 'orthographic' ) {
+            var camera = new THREE.OrthographicCamera( -1, 1, 1, -1, -1000, 1000 );
+            updateCameraAspect( camera, aspect );
+            return camera;
+        }
+
+        return new THREE.PerspectiveCamera( 45, aspect, 0.1, 1000 );
+
+    }
+
+    function updateCameraAspect( camera, aspect ) {
+
+        if ( camera.isPerspectiveCamera ) {
+            camera.aspect = aspect;
+        } else if ( camera.isOrthographicCamera ) {
+            // Fit the camera frustum to the bounding box's diagonal so that the entire plot fits
+            // within at the default zoom level and camera position.
+            if ( aspect > 1 ) { // Wide window
+                camera.top = midToCorner;
+                camera.right = midToCorner * aspect;
+            } else { // Tall or square window
+                camera.top = midToCorner / aspect;
+                camera.right = midToCorner;
+            }
+            camera.bottom = -camera.top;
+            camera.left = -camera.right;
+        }
+
+        camera.updateProjectionMatrix();
+
+    }
+
+    var lights = [{"x":-5, "y":3, "z":0, "color":"#7f7f7f", "parent":"camera"}];
+    for ( var i=0 ; i < lights.length ; i++ ) {
+        var light = new THREE.DirectionalLight( lights[i].color, 1 );
+        light.position.set( a[0]*lights[i].x, a[1]*lights[i].y, a[2]*lights[i].z );
+        if ( lights[i].parent === 'camera' ) {
+            light.target.position.set( a[0]*xMid, a[1]*yMid, a[2]*zMid );
+            scene.add( light.target );
+            camera.add( light );
+        } else scene.add( light );
+    }
+    scene.add( camera );
+
+    var ambient = {"color":"#7f7f7f"};
+    scene.add( new THREE.AmbientLight( ambient.color, 1 ) );
+
+    var controls = new THREE.OrbitControls( camera, renderer.domElement );
+    controls.target.set( a[0]*xMid, a[1]*yMid, a[2]*zMid );
+    controls.addEventListener( 'change', function() { if ( !animate ) render(); } );
+
+    window.addEventListener( 'resize', function() {
+        
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        updateCameraAspect( camera, window.innerWidth / window.innerHeight );
+        if ( !animate ) render();
+        
+    } );
+
+    var texts = [];
+    for ( var i=0 ; i < texts.length ; i++ )
+        addLabel( texts[i].text, a[0]*texts[i].x, a[1]*texts[i].y, a[2]*texts[i].z );
+
+    var points = [];
+    for ( var i=0 ; i < points.length ; i++ ) addPoint( points[i] );
+
+    function addPoint( json ) {
+
+        var geometry = new THREE.Geometry();
+        var v = json.point;
+        geometry.vertices.push( new THREE.Vector3( a[0]*v[0], a[1]*v[1], a[2]*v[2] ) );
+
+        var canvas = document.createElement( 'canvas' );
+        canvas.width = 128;
+        canvas.height = 128;
+
+        var context = canvas.getContext( '2d' );
+        context.arc( 64, 64, 64, 0, 2 * Math.PI );
+        context.fillStyle = json.color;
+        context.fill();
+
+        var texture = new THREE.Texture( canvas );
+        texture.needsUpdate = true;
+
+        var transparent = json.opacity < 1 ? true : false;
+        var size = camera.isOrthographicCamera ? json.size : json.size/100;
+        var material = new THREE.PointsMaterial( { size: size, map: texture,
+                                                   transparent: transparent, opacity: json.opacity,
+                                                   alphaTest: .1 } );
+
+        var c = new THREE.Vector3();
+        geometry.computeBoundingBox();
+        geometry.boundingBox.getCenter( c );
+        geometry.translate( -c.x, -c.y, -c.z );
+
+        var mesh = new THREE.Points( geometry, material );
+        mesh.position.set( c.x, c.y, c.z );
+        scene.add( mesh );
+
+    }
+
+    var lines = [{"points":[[-5.0, 1.0, 1.0], [-4.864864864864865, 0.9466764061358657, 0.8961962179343185], [-4.72972972972973, 0.8948137326515707, 0.8006916161418367], [-4.594594594594596, 0.844411979547115, 0.7130315912026773], [-4.4594594594594605, 0.7954711468224985, 0.632774345427101], [-4.3243243243243255, 0.7479912344777214, 0.5594908868555056], [-4.189189189189191, 0.7019722425127836, 0.4927650292584262], [-4.054054054054056, 0.6574141709276851, 0.4321933921365355], [-3.918918918918921, 0.6143170197224258, 0.3773854007206433], [-3.783783783783786, 0.5726807888970058, 0.32796328597169694], [-3.6486486486486513, 0.5325054784514252, 0.2835620845807812], [-3.5135135135135167, 0.4937910883856838, 0.2438296389691182], [-3.3783783783783816, 0.4565376186997817, 0.20842659728806728], [-3.2432432432432465, 0.420745069393719, 0.1770264134191254], [-3.108108108108112, 0.3864134404674955, 0.14931534697392668], [-2.9729729729729772, 0.35354273192111124, 0.12499246329424273], [-2.837837837837842, 0.32213294375456636, 0.10376963345198262], [-2.702702702702707, 0.2921840759678607, 0.08537153424919261], [-2.5675675675675724, 0.26369612856099445, 0.06953564821805651], [-2.4324324324324373, 0.23666910153396734, 0.05601226362089534], [-2.2972972972973023, 0.21110299488677955, 0.044564474450167674], [-2.162162162162167, 0.18699780861943108, 0.03496818042846937], [-2.0270270270270316, 0.1643535427319219, 0.027012087008533678], [-1.8918918918918968, 0.143170197224252, 0.020497705373231215], [-1.7567567567567615, 0.12344777209642142, 0.015239352435570003], [-1.6216216216216264, 0.10518626734843013, 0.011064150838695419], [-1.4864864864864913, 0.08838568298027814, 0.007812028955890229], [-1.3513513513513562, 0.07304601899196546, 0.005335720890574578], [-1.2162162162162211, 0.05916727538349206, 0.0035007664763059857], [-1.0810810810810858, 0.04674945215485797, 0.0021855112767793544], [-0.9459459459459507, 0.03579254930606318, 0.001281106585826964], [-0.8108108108108156, 0.026296566837107686, 0.0006915094274184717], [-0.6756756756756804, 0.018261504747991493, 0.00033348255566091584], [-0.5405405405405452, 0.011687363038714595, 0.00013659445479871206], [-0.40540540540541015, 0.006574141709276999, 4.32193392136555e-05], [-0.270270270270275, 0.0029218407596787, 8.537153424919802e-06], [-0.13513513513513986, 0.0007304601899197005, 5.335720890575249e-07], [-4.718447854656915e-15, 8.905500062846579e-31, 7.930793136936042e-61], [0.13513513513513042, 0.0007304601899195984, 5.335720890573758e-07], [0.27027027027026557, 0.0029218407596784957, 8.537153424918608e-06], [0.4054054054054007, 0.006574141709276692, 4.321933921365147e-05], [0.5405405405405359, 0.011687363038714187, 0.00013659445479870252], [0.675675675675671, 0.018261504747990983, 0.0003334825556608972], [0.8108108108108061, 0.026296566837107075, 0.0006915094274184396], [0.9459459459459413, 0.03579254930606247, 0.0012811065858269128], [1.0810810810810765, 0.04674945215485716, 0.0021855112767792785], [1.2162162162162116, 0.05916727538349115, 0.0035007664763058773], [1.3513513513513467, 0.07304601899196443, 0.005335720890574429], [1.486486486486482, 0.08838568298027702, 0.007812028955890031], [1.621621621621617, 0.10518626734842891, 0.011064150838695162], [1.7567567567567521, 0.12344777209642009, 0.015239352435569675], [1.8918918918918872, 0.1431701972242506, 0.020497705373230812], [2.0270270270270223, 0.16435354273192038, 0.027012087008533178], [2.1621621621621574, 0.18699780861942944, 0.03496818042846876], [2.297297297297293, 0.21110299488677783, 0.044564474450166945], [2.432432432432428, 0.2366691015339655, 0.056012263620894474], [2.567567567567563, 0.2636961285609925, 0.06953564821805548], [2.702702702702698, 0.29218407596785884, 0.0853715342491915], [2.8378378378378333, 0.32213294375456436, 0.10376963345198133], [2.9729729729729684, 0.35354273192110913, 0.12499246329424124], [3.108108108108103, 0.38641344046749326, 0.14931534697392496], [3.2432432432432377, 0.42074506939371664, 0.17702641341912342], [3.3783783783783727, 0.4565376186997793, 0.2084265972880651], [3.513513513513508, 0.4937910883856813, 0.24382963896911572], [3.6486486486486425, 0.5325054784514226, 0.2835620845807785], [3.783783783783777, 0.5726807888970031, 0.3279632859716939], [3.918918918918912, 0.614317019722423, 0.37738540072063986], [4.054054054054047, 0.6574141709276822, 0.43219339213653174], [4.189189189189182, 0.7019722425127806, 0.492765029258422], [4.324324324324317, 0.7479912344777183, 0.559490886855501], [4.459459459459452, 0.7954711468224954, 0.6327743454270961], [4.594594594594587, 0.8444119795471117, 0.7130315912026718], [4.729729729729721, 0.8948137326515674, 0.8006916161418307], [4.864864864864856, 0.9466764061358622, 0.896196217934312], [5.0, 1.0, 1.0]], "color":"red", "opacity":1.0, "linewidth":1},{"points":[[-0.8414709848078965, -0.1411200080598672, -5.0], [-0.8265626856888397, -0.2208381307717258, -4.864864864864865], [-0.8110506521850842, -0.29910522751597735, -4.72972972972973], [-0.7949462145298537, -0.37540704113336965, -4.594594594594596], [-0.7782611356576805, -0.44924222743778963, -4.4594594594594605], [-0.7610076026125734, -0.5201256493187376, -4.3243243243243255], [-0.7431982176464093, -0.5875915643545465, -4.189189189189191], [-0.7248459890140493, -0.6511966849920056, -4.054054054054056], [-0.7059643214719058, -0.7105230911853541, -3.918918918918921], [-0.6865670064868974, -0.7651809763570302, -3.783783783783786], [-0.666668212162944, -0.8148112086377257, -3.6486486486486513], [-0.6462824728923616, -0.8590876905570171, -3.5135135135135167], [-0.6254246787397129, -0.8977195016801283, -3.3783783783783816], [-0.6041100645658704, -0.9304528101125427, -3.2432432432432465], [-0.5823541989002344, -0.9570725403128438, -3.108108108108112], [-0.5601729725692344, -0.9774037862553541, -2.9729729729729772], [-0.5375825870894191, -0.991312960657328, -2.837837837837842], [-0.5145995428336142, -0.9987086727196552, -2.702702702702707], [-0.4912406269787909, -0.9995423286138431, -2.5675675675675724], [-0.4675229012444472, -0.9938084507697531, -2.4324324324324373], [-0.44346368943046005, -0.9815447138662001, -2.2972972972973023], [-0.4190805647635096, -0.9628316972879344, -2.162162162162167], [-0.3943913370613176, -0.9377923556754991, -2.0270270270270316], [-0.36941403972407705, -0.9065912110467382, -1.8918918918918968], [-0.3441669165625724, -0.8694332717981513, -1.7567567567567615], [-0.3186684084726139, -0.8265626856888414, -1.6216216216216264], [-0.2929371399655168, -0.7782611356576822, -1.4864864864864913], [-0.2669919055644656, -0.7248459890140508, -1.3513513513513562], [-0.24085165607669878, -0.6666682121629458, -1.2162162162162211], [-0.21453548475154108, -0.6041100645658721, -1.0810810810810858], [-0.18806261333439392, -0.5375825870894207, -0.9459459459459507], [-0.16145237802687024, -0.46752290124444884, -0.8108108108108156], [-0.13472421536332882, -0.3943913370613194, -0.6756756756756804], [-0.10789764801412388, -0.3186684084726157, -0.5405405405405452], [-0.08099227052593966, -0.24085165607670062, -0.40540540540541015], [-0.05402773500962525, -0.1614523780268721, -0.270270270270275], [-0.02702373678598392, -0.08099227052594153, -0.13513513513513986], [-9.43689570931383e-16, -2.831068712794149e-15, -4.718447854656915e-15], [0.027023736785982036, 0.0809922705259359, 0.13513513513513042], [0.05402773500962337, 0.1614523780268665, 0.27027027027026557], [0.08099227052593777, 0.24085165607669512, 0.4054054054054007], [0.10789764801412201, 0.31866840847261035, 0.5405405405405359], [0.13472421536332693, 0.3943913370613142, 0.675675675675671], [0.16145237802686838, 0.46752290124444384, 0.8108108108108061], [0.18806261333439206, 0.537582587089416, 0.9459459459459413], [0.21453548475153925, 0.6041100645658675, 1.0810810810810765], [0.24085165607669695, 0.6666682121629416, 1.2162162162162116], [0.2669919055644638, 0.7248459890140471, 1.3513513513513467], [0.29293713996551496, 0.7782611356576786, 1.486486486486482], [0.31866840847261213, 0.8265626856888381, 1.621621621621617], [0.34416691656257065, 0.8694332717981484, 1.7567567567567521], [0.3694140397240753, 0.9065912110467359, 1.8918918918918872], [0.3943913370613159, 0.9377923556754971, 2.0270270270270223], [0.41908056476350786, 0.9628316972879328, 2.1621621621621574], [0.44346368943045833, 0.9815447138661991, 2.297297297297293], [0.4675229012444455, 0.9938084507697525, 2.432432432432428], [0.4912406269787893, 0.9995423286138428, 2.567567567567563], [0.5145995428336128, 0.9987086727196555, 2.702702702702698], [0.5375825870894175, 0.9913129606573287, 2.8378378378378333], [0.5601729725692329, 0.9774037862553552, 2.9729729729729684], [0.582354198900233, 0.9570725403128453, 3.108108108108103], [0.6041100645658689, 0.9304528101125447, 3.2432432432432377], [0.6254246787397114, 0.8977195016801306, 3.3783783783783727], [0.6462824728923602, 0.8590876905570198, 3.513513513513508], [0.6666682121629427, 0.8148112086377288, 3.6486486486486425], [0.6865670064868962, 0.7651809763570336, 3.783783783783777], [0.7059643214719046, 0.7105230911853578, 3.918918918918912], [0.724845989014048, 0.6511966849920097, 4.054054054054047], [0.743198217646408, 0.5875915643545508, 4.189189189189182], [0.7610076026125723, 0.5201256493187422, 4.324324324324317], [0.7782611356576794, 0.44924222743779435, 4.459459459459452], [0.7949462145298526, 0.37540704113337453, 4.594594594594587], [0.8110506521850832, 0.29910522751598245, 4.729729729729721], [0.8265626856888387, 0.22083813077173098, 4.864864864864856], [0.8414709848078965, 0.1411200080598672, 5.0]], "color":"red", "opacity":1.0, "linewidth":1},{"points":[[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]], "color":"blue", "opacity":1.0, "linewidth":1},{"points":[[0.0, 0.0, 0.0], [1.0, 3.0, 5.0]], "color":"blue", "opacity":1.0, "linewidth":1},{"points":[[0.0, 0.0, 0.0], [1.0, 3.0, 5.0]], "color":"blue", "opacity":1.0, "linewidth":1}];
+    for ( var i=0 ; i < lines.length ; i++ ) addLine( lines[i] );
+
+    function addLine( json ) {
+
+        var geometry = new THREE.Geometry();
+        for ( var i=0 ; i < json.points.length ; i++ ) {
+            var v = json.points[i];
+            geometry.vertices.push( new THREE.Vector3( a[0]*v[0], a[1]*v[1], a[2]*v[2] ) );
+        }
+
+        var transparent = json.opacity < 1 ? true : false;
+        var material = new THREE.LineBasicMaterial( { color: json.color, linewidth: json.linewidth,
+                                                      transparent: transparent, opacity: json.opacity } );
+
+        var c = new THREE.Vector3();
+        geometry.computeBoundingBox();
+        geometry.boundingBox.getCenter( c );
+        geometry.translate( -c.x, -c.y, -c.z );
+
+        var mesh = new THREE.Line( geometry, material );
+        mesh.position.set( c.x, c.y, c.z );
+        scene.add( mesh );
+
+    }
+
+    var surfaces = [];
+    for ( var i=0 ; i < surfaces.length ; i++ ) addSurface( surfaces[i] );
+
+    function addSurface( json ) {
+
+        var useFaceColors = 'faceColors' in json ? true : false;
+
+        var geometry = new THREE.Geometry();
+        for ( var i=0 ; i < json.vertices.length ; i++ ) {
+            var v = json.vertices[i];
+            geometry.vertices.push( new THREE.Vector3( a[0]*v.x, a[1]*v.y, a[2]*v.z ) );
+        }
+        for ( var i=0 ; i < json.faces.length ; i++ ) {
+            var f = json.faces[i];
+            for ( var j=0 ; j < f.length - 2 ; j++ ) {
+                var face = new THREE.Face3( f[0], f[j+1], f[j+2] );
+                if ( useFaceColors ) face.color.set( json.faceColors[i] );
+                geometry.faces.push( face );
+            }
+        }
+        geometry.computeVertexNormals();
+
+        var side = json.singleSide ? THREE.FrontSide : THREE.DoubleSide;
+        var transparent = json.opacity < 1 ? true : false;
+
+        var material = new THREE.MeshPhongMaterial( { side: side,
+                                     color: useFaceColors ? 'white' : json.color,
+                                     vertexColors: useFaceColors ? THREE.FaceColors : THREE.NoColors,
+                                     transparent: transparent, opacity: json.opacity,
+                                     shininess: 20, flatShading: json.useFlatShading } );
+
+        var c = new THREE.Vector3();
+        geometry.computeBoundingBox();
+        geometry.boundingBox.getCenter( c );
+        geometry.translate( -c.x, -c.y, -c.z );
+
+        var mesh = new THREE.Mesh( geometry, material );
+        mesh.position.set( c.x, c.y, c.z );
+        if ( transparent && json.renderOrder ) mesh.renderOrder = json.renderOrder;
+        scene.add( mesh );
+
+        if ( json.showMeshGrid ) {
+
+            var geometry = new THREE.Geometry();
+
+            for ( var i=0 ; i < json.faces.length ; i++ ) {
+                var f = json.faces[i];
+                for ( var j=0 ; j < f.length ; j++ ) {
+                    var k = j === f.length-1 ? 0 : j+1;
+                    var v1 = json.vertices[f[j]];
+                    var v2 = json.vertices[f[k]];
+                    // vertices in opposite directions on neighboring faces
+                    var nudge = f[j] < f[k] ? .0005*zRange : -.0005*zRange;
+                    geometry.vertices.push( new THREE.Vector3( a[0]*v1.x, a[1]*v1.y, a[2]*(v1.z+nudge) ) );
+                    geometry.vertices.push( new THREE.Vector3( a[0]*v2.x, a[1]*v2.y, a[2]*(v2.z+nudge) ) );
+                }
+            }
+
+            var material = new THREE.LineBasicMaterial( { color: 'black', linewidth: 1 } );
+
+            var c = new THREE.Vector3();
+            geometry.computeBoundingBox();
+            geometry.boundingBox.getCenter( c );
+            geometry.translate( -c.x, -c.y, -c.z );
+
+            var mesh = new THREE.LineSegments( geometry, material );
+            mesh.position.set( c.x, c.y, c.z );
+            scene.add( mesh );
+
+        }
+
+    }
+
+    var scratch = new THREE.Vector3();
+
+    function render() {
+
+        if ( animate ) requestAnimationFrame( render );
+        renderer.render( scene, camera );
+
+        // Resize text based on distance from camera.
+        // Not neccessary for orthographic due to the nature of the projection (preserves sizes).
+        if ( !camera.isOrthographicCamera ) {
+            for ( var i=0 ; i < scene.children.length ; i++ ) {
+                if ( scene.children[i].type === 'Sprite' ) {
+                    var sprite = scene.children[i];
+                    var adjust = scratch.addVectors( sprite.position, scene.position )
+                                    .sub( camera.position ).length() / 5;
+                    sprite.scale.set( adjust, .25*adjust ); // ratio of canvas width to height
+                }
+            }
+        }
+    }
+    
+    render();
+    controls.update();
+    if ( !animate ) render();
+
+
+    // menu functions
+
+    function toggleMenu() {
+
+        var m = document.getElementById( 'menu-content' );
+        if ( m.style.display === 'block' ) m.style.display = 'none'
+        else m.style.display = 'block';
+
+    }
+
+
+    function saveAsPNG() {
+
+        var a = document.body.appendChild( document.createElement( 'a' ) );
+        a.href = renderer.domElement.toDataURL( 'image/png' );
+        a.download = 'screenshot';
+        a.click();
+
+    }
+
+    function saveAsHTML() {
+
+        toggleMenu(); // otherwise visible in output
+        event.stopPropagation();
+
+        var blob = new Blob( [ '<!DOCTYPE html>\n' + document.documentElement.outerHTML ] );
+        var a = document.body.appendChild( document.createElement( 'a' ) );
+        a.href = window.URL.createObjectURL( blob );
+        a.download = 'graphic.html';
+        a.click();
+
+    }
+
+    function getViewpoint() {
+
+        var info = '<pre>' + JSON.stringify( camera, null, '\t' ) + '</pre>';
+        window.open().document.write( info );
+
+    }
+
+</script><canvas width="985" height="400" style="width: 985px; height: 400px;" tabindex="0"></canvas>
+
+<div id="menu-container" onclick="toggleMenu()">ⓘ
+<div id="menu-content" style="display: none;">
+<div onclick="saveAsPNG()">Save as PNG</div>
+<div onclick="saveAsHTML()">Save as HTML</div>
+<div onclick="getViewpoint()">Camera Info</div>
+<div>Close Menu</div>
+</div></div>
+
+
+
+</body></html>
